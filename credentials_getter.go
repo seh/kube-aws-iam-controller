@@ -35,15 +35,17 @@ type Credentials struct {
 // STSCredentialsGetter is a credentials getter for getting credentials from
 // STS.
 type STSCredentialsGetter struct {
-	svc         stsiface.STSAPI
-	baseRoleARN string
+	svc              stsiface.STSAPI
+	baseRoleARN      string
+	externalIDPrefix string
 }
 
 // NewSTSCredentialsGetter initializes a new STS based credentials fetcher.
-func NewSTSCredentialsGetter(sess *session.Session, baseRoleARN string, configs ...*aws.Config) *STSCredentialsGetter {
+func NewSTSCredentialsGetter(sess *session.Session, baseRoleARN string, externalIDPrefix string, configs ...*aws.Config) *STSCredentialsGetter {
 	return &STSCredentialsGetter{
-		svc:         sts.New(sess, configs...),
-		baseRoleARN: baseRoleARN,
+		svc:              sts.New(sess),
+		baseRoleARN:      baseRoleARN,
+		externalIDPrefix: externalIDPrefix,
 	}
 }
 

@@ -27,14 +27,15 @@ const (
 
 var (
 	config struct {
-		Debug          bool
-		Interval       time.Duration
-		RefreshLimit   time.Duration
-		EventQueueSize int
-		BaseRoleARN    string
-		APIServer      *url.URL
-		Namespace      string
-		AssumeRole     string
+		Debug            bool
+		Interval         time.Duration
+		RefreshLimit     time.Duration
+		EventQueueSize   int
+		BaseRoleARN      string
+		AssumeRole       string
+		ExternalIDPrefix string
+		APIServer        *url.URL
+		Namespace        string
 	}
 )
 
@@ -42,7 +43,7 @@ func main() {
 	kingpin.Flag("debug", "Enable debug logging.").BoolVar(&config.Debug)
 	kingpin.Flag("interval", "Interval between syncing secrets.").
 		Default(defaultInterval).DurationVar(&config.Interval)
-	kingpin.Flag("refresh-limit", "Time limit when AWS IAM credentials should be refreshed. I.e. 15 min. before they expire.").
+	kingpin.Flag("refresh-limit", "Maximum duration to allow until AWS IAM credentials will expire before refreshing them.").
 		Default(defaultRefreshLimit).DurationVar(&config.RefreshLimit)
 	kingpin.Flag("event-queue-size", "Size of the pod event queue.").
 		Default(defaultEventQueueSize).IntVar(&config.EventQueueSize)
@@ -50,10 +51,16 @@ func main() {
 		StringVar(&config.BaseRoleARN)
 	kingpin.Flag("assume-role", "Assume Role can be specified to assume a role at start-up which is used for further assuming other roles managed by the controller.").
 		StringVar(&config.AssumeRole)
+	kingpin.Flag("external-id-prefix", "Prefix for the external ID supplied when assuming an IAM role.").
+		StringVar(&config.ExternalIDPrefix)
 	kingpin.Flag("namespace", "Limit the controller to a certain namespace.").
 		Default(v1.NamespaceAll).StringVar(&config.Namespace)
-	kingpin.Flag("apiserver", "API server url.").URLVar(&config.APIServer)
+	kingpin.Flag("apiserver", "API server URL.").URLVar(&config.APIServer)
 	kingpin.Parse()
+
+	if err := validateExternalIDPrefix(config.ExternalIDPrefix); err != nil {
+		log.Fatalf("Invalid external ID prefix: %v", err)
+	}
 
 	if config.Debug {
 		log.SetLevel(log.DebugLevel)

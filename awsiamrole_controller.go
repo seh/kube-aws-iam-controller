@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	av1 "github.com/mikkeloscar/kube-aws-iam-controller/pkg/apis/zalando.org/v1"
@@ -31,30 +32,42 @@ var (
 // AWSIAMRoleController is a controller which lists AWSIAMRole resources and
 // create/update matching secrets with AWS IAM role credentials.
 type AWSIAMRoleController struct {
-	client       clientset.Interface
-	recorder     record.EventRecorder
-	interval     time.Duration
-	refreshLimit time.Duration
-	creds        CredentialsGetter
-	namespace    string
+	client           clientset.Interface
+	recorder         record.EventRecorder
+	interval         time.Duration
+	refreshLimit     time.Duration
+	creds            CredentialsGetter
+	namespace        string
+	externalIDPrefix string
 }
 
-// NewSecretsController initializes a new AWSIAMRoleController.
-func NewAWSIAMRoleController(client clientset.Interface, interval, refreshLimit time.Duration, creds CredentialsGetter, namespace string) *AWSIAMRoleController {
+// NewAWSIAMRoleController initializes a new AWSIAMRoleController.
+func NewAWSIAMRoleController(client clientset.Interface, interval, refreshLimit time.Duration, creds CredentialsGetter, namespace string, externalIDPrefix string) *AWSIAMRoleController {
 	return &AWSIAMRoleController{
-		client:       client,
-		recorder:     recorder.CreateEventRecorder(client),
-		interval:     interval,
-		refreshLimit: refreshLimit,
-		creds:        creds,
-		namespace:    namespace,
+		client:           client,
+		recorder:         recorder.CreateEventRecorder(client),
+		interval:         interval,
+		refreshLimit:     refreshLimit,
+		creds:            creds,
+		namespace:        namespace,
+		externalIDPrefix: "/" + externalIDPrefix + "/",
 	}
+}
+
+func (c *AWSIAMRoleController) externalIDFor(o *av1.AWSIAMRole) string {
+	var b strings.Builder
+	b.Grow(externalIDMaxSize)
+	b.WriteString(c.externalIDPrefix)
+	b.WriteString(o.Namespace)
+	b.WriteByte('/')
+	b.WriteString(o.Name)
+	return b.String()
 }
 
 // getCreds gets new credentials from the CredentialsGetter and converts them
 // to a secret data map.
-func (c *AWSIAMRoleController) getCreds(role string, sessionDuration time.Duration) (*Credentials, map[string][]byte, error) {
-	creds, err := c.creds.Get(role, sessionDuration)
+func (c *AWSIAMRoleController) getCreds(role string, sessionDuration time.Duration, externalID string) (*Credentials, map[string][]byte, error) {
+	creds, err := c.creds.Get(role, sessionDuration, externalID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -167,12 +180,12 @@ func (c *AWSIAMRoleController) refresh() error {
 
 		if refreshCreds {
 			var creds *Credentials
-			creds, secret.Data, err = c.getCreds(role, roleSessionDuration)
+			creds, secret.Data, err = c.getCreds(role, roleSessionDuration, c.externalIDFor(&awsIAMRole))
 			if err != nil {
 				c.recorder.Event(&awsIAMRole,
 					v1.EventTypeWarning,
 					"GetCredentialsFailed",
-					fmt.Sprintf("Failed to get creedentials for role '%s': %v", role, err),
+					fmt.Sprintf("Failed to get credentials for role '%s': %v", role, err),
 				)
 				continue
 			}
@@ -260,12 +273,12 @@ func (c *AWSIAMRoleController) refresh() error {
 
 			if awsIAMRole.Generation != generation {
 				var creds *Credentials
-				creds, secret.Data, err = c.getCreds(role, roleSessionDuration)
+				creds, secret.Data, err = c.getCreds(role, roleSessionDuration, c.externalIDFor(&awsIAMRole))
 				if err != nil {
 					c.recorder.Event(&awsIAMRole,
 						v1.EventTypeWarning,
 						"GetCredentialsFailed",
-						fmt.Sprintf("Failed to get creedentials for role '%s': %v", role, err),
+						fmt.Sprintf("Failed to get credentials for role '%s': %v", role, err),
 					)
 					continue
 				}
@@ -332,12 +345,12 @@ func (c *AWSIAMRoleController) refresh() error {
 			continue
 		}
 
-		creds, secretData, err := c.getCreds(role, roleSessionDuration)
+		creds, secretData, err := c.getCreds(role, roleSessionDuration, c.externalIDFor(&awsIAMRole))
 		if err != nil {
 			c.recorder.Event(&awsIAMRole,
 				v1.EventTypeWarning,
 				"GetCredentialsFailed",
-				fmt.Sprintf("Failed to get creedentials for role '%s': %v", role, err),
+				fmt.Sprintf("Failed to get credentials for role '%s': %v", role, err),
 			)
 			continue
 		}

@@ -26,8 +26,9 @@ func (sts *mockSTSAPI) AssumeRole(*sts.AssumeRoleInput) (*sts.AssumeRoleOutput, 
 }
 
 func TestGet(t *testing.T) {
-	sess := session.New(&aws.Config{Region: aws.String("region")})
-	getter := NewSTSCredentialsGetter(sess, "")
+	sess, err := session.NewSession(&aws.Config{Region: aws.String("region")})
+	require.NoError(t, err)
+	getter := NewSTSCredentialsGetter(sess, "", "")
 	getter.svc = &mockSTSAPI{
 		err: nil,
 		assumeRoleResp: &sts.AssumeRoleOutput{
@@ -41,7 +42,7 @@ func TestGet(t *testing.T) {
 	}
 
 	roleARN := "arn:aws:iam::012345678910:role/role-name"
-	creds, err := getter.Get(roleARN, 3600*time.Second)
+	creds, err := getter.Get(roleARN, 3600*time.Second, "")
 	require.NoError(t, err)
 	require.Equal(t, "access_key_id", creds.AccessKeyID)
 	require.Equal(t, "secret_access_key", creds.SecretAccessKey)
@@ -51,7 +52,7 @@ func TestGet(t *testing.T) {
 	getter.svc = &mockSTSAPI{
 		err: errors.New("failed"),
 	}
-	_, err = getter.Get(arnPrefix+"role", 3600*time.Second)
+	_, err = getter.Get(arnPrefix+"role", 3600*time.Second, "")
 	require.Error(t, err)
 }
 

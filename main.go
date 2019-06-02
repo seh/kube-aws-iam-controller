@@ -101,7 +101,7 @@ func main() {
 		awsConfigs = append(awsConfigs, &aws.Config{Credentials: creds})
 	}
 
-	credsGetter := NewSTSCredentialsGetter(awsSess, config.BaseRoleARN, awsConfigs...)
+	credsGetter := NewSTSCredentialsGetter(awsSess, config.BaseRoleARN, config.ExternalIDPrefix, awsConfigs...)
 
 	podsEventCh := make(chan *PodEvent, config.EventQueueSize)
 
@@ -124,6 +124,7 @@ func main() {
 		config.RefreshLimit,
 		credsGetter,
 		config.Namespace,
+		config.ExternalIDPrefix,
 	)
 
 	go awsIAMRoleController.Run(ctx)

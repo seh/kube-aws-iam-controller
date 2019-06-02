@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -15,7 +15,7 @@ type mockCredsGetter struct {
 	creds *Credentials
 }
 
-func (g *mockCredsGetter) Get(role string, sessionDuration time.Duration) (*Credentials, error) {
+func (g *mockCredsGetter) Get(role string, sessionDuration time.Duration, externalID string) (*Credentials, error) {
 	if g.err != nil {
 		return nil, g.err
 	}

@@ -76,7 +76,7 @@ func NewSecretsController(client kubernetes.Interface, namespace string, interva
 // getCreds gets new credentials from the CredentialsGetter and converts them
 // to a secret data map.
 func (c *SecretsController) getCreds(role string) (map[string][]byte, error) {
-	creds, err := c.creds.Get(role, 3600*time.Second)
+	creds, err := c.creds.Get(role, 3600*time.Second, "")
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (c *SecretsController) refresh() error {
 		return err
 	}
 
-	credsCache := map[string]map[string][]byte{}
+	credsCache := make(map[string]map[string][]byte, len(secrets.Items))
 
 	tmpSecretStore := NewRoleStore()
 
@@ -196,15 +196,15 @@ func (c *SecretsController) refresh() error {
 		// TODO: move to function
 		refreshCreds := false
 
-		expirary, ok := secret.Data[expireKey]
+		expire, ok := secret.Data[expireKey]
 		if !ok {
 			refreshCreds = true
 		} else {
-			expire, err := time.Parse(time.RFC3339, string(expirary))
+			expiresAfter, err := time.Parse(time.RFC3339, string(expire))
 			if err != nil {
-				log.Debugf("Failed to parse expirary time %s: %v", expirary, err)
+				log.Debugf("Failed to parse expiry time %s: %v", expire, err)
 				refreshCreds = true
-			} else if time.Now().UTC().Add(c.refreshLimit).After(expire) {
+			} else if time.Now().UTC().Add(c.refreshLimit).After(expiresAfter) {
 				refreshCreds = true
 			}
 		}

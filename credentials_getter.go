@@ -20,7 +20,7 @@ const (
 
 // CredentialsGetter can get credentials.
 type CredentialsGetter interface {
-	Get(role string, sessionDuration time.Duration) (*Credentials, error)
+	Get(role string, sessionDuration time.Duration, externalID string) (*Credentials, error)
 }
 
 // Credentials defines fecthed credentials including expiration time.
@@ -43,15 +43,15 @@ type STSCredentialsGetter struct {
 // NewSTSCredentialsGetter initializes a new STS based credentials fetcher.
 func NewSTSCredentialsGetter(sess *session.Session, baseRoleARN string, externalIDPrefix string, configs ...*aws.Config) *STSCredentialsGetter {
 	return &STSCredentialsGetter{
-		svc:              sts.New(sess),
+		svc:              sts.New(sess, configs...),
 		baseRoleARN:      baseRoleARN,
 		externalIDPrefix: externalIDPrefix,
 	}
 }
 
-// Get gets new credentials for the specified role. The credentials are fetched
-// via STS.
-func (c *STSCredentialsGetter) Get(role string, sessionDuration time.Duration) (*Credentials, error) {
+// Get gets new credentials for the specified role, using the given external ID. The credentials are
+// fetched via STS.
+func (c *STSCredentialsGetter) Get(role string, sessionDuration time.Duration, externalID string) (*Credentials, error) {
 	roleARN := c.baseRoleARN + role
 	if strings.HasPrefix(role, arnPrefix) {
 		roleARN = role
@@ -66,6 +66,10 @@ func (c *STSCredentialsGetter) Get(role string, sessionDuration time.Duration) (
 		RoleArn:         aws.String(roleARN),
 		RoleSessionName: aws.String(roleSessionName),
 		DurationSeconds: aws.Int64(int64(sessionDuration.Seconds())),
+	}
+	// Trust that this ID meets the syntactic constraints.
+	if len(externalID) > 0 {
+		params.ExternalId = aws.String(externalID)
 	}
 
 	resp, err := c.svc.AssumeRole(params)
